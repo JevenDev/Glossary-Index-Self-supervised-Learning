@@ -1,0 +1,121 @@
+body {
+    font-family: monospace;
+    margin: 24px;
+    padding: 0;
+    background: #0f1222;
+    color: #f4f6ff;
+    overflow-x: hidden;
+}
+
+::-webkit-scrollbar {
+    display: none;
+}
+
+.heading {
+    text-align: left;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 50px;
+}
+
+.heading p {
+    font-size: 16px;
+}
+
+.flash-warning {
+    color: #ff6666;
+    font-size: 16px;
+    text-align: center;
+}
+
+.card {
+    border: 1px solid #2a2e52;
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+    background: #121535;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+button, input[type="number"], input[type="file"] {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #2a2e52;
+    background: #202556;
+    color: #fff;
+}
+
+button:disabled { 
+    opacity: 0.6; 
+    cursor: not-allowed; 
+}
+
+button:enabled:hover { 
+    background: #2a2e52; 
+    cursor: pointer; 
+}
+
+input[type="number"] { 
+    width: 100px; 
+    background: #0b0d1c; 
+    color: #fff; 
+}
+
+.stats { 
+    margin-top: 20px;
+    font-size: 16px;
+}
+
+canvas {
+    border: 1px solid #2a2e52;
+    border-radius: 6px;
+    background: #0b0d1c;
+    max-width: 225px;
+    max-height: 225px;
+    object-fit: cover;
+}
+
+.train-row {
+    display: grid;
+    grid-template-columns: auto 225px;
+    column-gap: 50px;
+    justify-content: center;
+    text-align: center;
+}
+
+.test-box, #ctest{
+    display: flex;
+    flex-direction: column;
+}
+
+/* training rotations */
+.rot-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 225px);
+    gap: 8px;
+}
+
+.thumbs { 
+    display: flex; 
+    gap: 6px; 
+}
+
+.thumbs img { 
+    width: 70px; 
+    height: 70px;
+    display: block;
+    margin: 0 auto;
+    object-fit: cover; 
+    border-radius: 6px; 
+}

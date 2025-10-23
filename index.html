@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Self-Supervised Rotation Model</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <!-- TensorFlow.js + Models -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.5/dist/knn-classifier.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <div class="heading">
+        <h1>Self-Supervised Learning - Rotation Prediction</h1>
+        <p>
+            The model teaches itself by predicting the rotation of images (0°, 90°, 180°, 270°).
+            Each loop: pick a random image -> train on its four rotations (self-labels) -> test a random rotation -> update accuracy.
+            <br><br>
+            The Training Rotations are shown on the left, and the Test Sample on the right. The Training rotations are labeled with their angles, 
+            while the Test Sample is unlabeled (the model must predict it).
+        </p>
+        <br>
+        <h2 class="flash-warning"><i>! FLASH WARNING ! - After uploading images, the loop speed will flash very quickly! (change speed via the "Delay (ms)" input)</i></h2>
+    </div>
+    <br>
+    <section class="card">
+        <h2>1) Load Your Images</h2>
+        <div class="controls">
+            <input id="file" type="file" accept="image/*" multiple />
+            <button id="btn-clear-images" disabled>Remove All</button>
+            <button id="btn-default-images">Use Default Images</button>
+        </div>
+        <br>
+        <p id="imgs-status">No images yet.</p>
+        <div id="thumbs" class="thumbs"></div>
+    </section>
+
+    <section class="card">
+        <h2>2) Train / Test Loop</h2>
+        <div class="controls">
+            <button id="btn-start" disabled>Begin Training Loop</button>
+            <button id="btn-stop" disabled>Stop</button>
+            <button id="btn-reset-stats">Reset Stats</button>
+            <button id="btn-clear-model">Clear Model</button>
+            <label class="inline">Delay (ms):
+                <input id="delay" type="number" min="0" step="50" value="250" />
+            </label>
+        </div>
+
+        <p id="status">Loading TensorFlow + MobileNet</p>
+
+        <div class="stats">
+            <div><b>Iterations:</b> <span id="it">0</span></div>
+            <div><b>Correct:</b> <span id="ok">0</span></div>
+            <div><b>Wrong:</b> <span id="bad">0</span></div>
+            <div><b>Accuracy:</b> <span id="acc">0.00%</span></div>
+            <div><b>Current Image:</b> <span id="curimg">N/A</span></div>
+            <div><b>Prediction:</b> <span id="pred">N/A</span></div>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="train-row">
+            <div>
+                <h3>Training Rotations</h3>
+                <div class="rot-grid">
+                    <canvas id="c0"   width="224" height="224" title="0°"></canvas>
+                    <canvas id="c90"  width="224" height="224" title="90°"></canvas>
+                    <canvas id="c180" width="224" height="224" title="180°"></canvas>
+                    <canvas id="c270" width="224" height="224" title="270°"></canvas>
+                </div>
+            </div>
+
+            <div class="test-box">
+                <h3>Test Sample</h3>
+                <canvas id="ctest" width="224" height="224"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <!-- hidden source image element (needed for drawing but not shown) -->
+    <img id="img" alt="hidden source" style="display:none" />
+</body>
+</html>
