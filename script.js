@@ -1,277 +1,352 @@
-// self-supervised rotation prediction
-// using TensorFlow.js, MobileNet, and KNN classifier
+// Machine-generated pseudo-labeling demo powered by ml5.js + MobileNet
 
-// DOM elements
 const fileInput = document.getElementById('file');
 const btnClearImages = document.getElementById('btn-clear-images');
 const btnDefaultImages = document.getElementById('btn-default-images');
-
-const btnStart = document.getElementById('btn-start');
-const btnStop = document.getElementById('btn-stop');
-const btnResetStats = document.getElementById('btn-reset-stats');
-const btnClearModel = document.getElementById('btn-clear-model');
-const delayInput = document.getElementById('delay');
+const btnLabelRandom = document.getElementById('btn-label-random');
+const btnLabelAll = document.getElementById('btn-label-all');
 
 const statusEl = document.getElementById('status');
-const itEl = document.getElementById('it');
-const okEl = document.getElementById('ok');
-const badEl = document.getElementById('bad');
-const accEl = document.getElementById('acc');
 const curimgEl = document.getElementById('curimg');
-const predEl = document.getElementById('pred');
-
 const imgsStatus = document.getElementById('imgs-status');
 const thumbs = document.getElementById('thumbs');
+const resultsEl = document.getElementById('results');
+const logEl = document.getElementById('log');
 
-// hidden source image (not displayed)
-// used for training / testing
+const preview = document.getElementById('preview');
+const previewCtx = preview.getContext('2d');
+
+// hidden element for image loading
 const img = document.getElementById('img');
 
-// canvases for rotated images
-const c0   = document.getElementById('c0');
-const c90  = document.getElementById('c90');
-const c180 = document.getElementById('c180');
-const c270 = document.getElementById('c270');
-const ctest = document.getElementById('ctest');
+const MAX_RESULTS = 5;
 
-const ctx0 = c0.getContext('2d');
-const ctx90 = c90.getContext('2d');
-const ctx180 = c180.getContext('2d');
-const ctx270 = c270.getContext('2d');
-const ctxTest = ctest.getContext('2d');
+let classifier = null;
+let imageEntries = [];
+let labeling = false;
+let bulkLabeling = false;
+let modelReady = false;
+let currentIndex = -1;
 
-// models
-let net = null; // MobileNet embedding model
-let knn = null; // KNN classifier
+initUI();
 
-// loop control
-let running = false;
-
-// data
-let imageURLs = []; // blob urls from users files
-let stats = { it: 0, ok: 0, bad: 0 };
-
-// to cap memory usage
-const MAX_EXAMPLES_PER_CLASS = 400;
-
-// init
 (async function init() {
     try {
-        statusEl.textContent = 'Loading TensorFlow.js + MobileNet…';
-        await tf.ready();
-        net = await mobilenet.load({ version: 2, alpha: 1.0 });
-        knn = knnClassifier.create();
-        statusEl.textContent = 'Models ready. Load your images to enable the loop.';
-    } catch (e) {
-        console.error(e);
-        statusEl.textContent = 'Failed to load models.';
-        disableControls(true);
+        statusEl.textContent = 'Loading ml5 + MobileNet…';
+
+        await prepareTensorflowBackend();
+
+        classifier = await ml5.imageClassifier('MobileNet');
+        modelReady = true;
+        statusEl.textContent = 'Model ready. Load images then request machine-generated labels.';
+        updateControls();
+    } catch (err) {
+        console.error(err);
+        statusEl.textContent = `Failed to load ml5 MobileNet. ${err?.message || ''}`.trim();
+        disableLabelControls(true);
     }
 })();
 
-// disable / enable all controls
-function disableControls(disabled) {
-    [
-        btnStart, 
-        btnStop, 
-        btnResetStats, 
-        btnClearModel, 
-        fileInput, 
-        btnClearImages, 
-        delayInput
-    ]
-    .forEach(el => el.disabled = disabled);
-}
-
-// image Loading 
 fileInput.onchange = () => {
-    clearImages();
+    clearImages({ quiet: true });
+
     const files = Array.from(fileInput.files || []);
     if (!files.length) {
         imgsStatus.textContent = 'No images yet.';
-        btnStart.disabled = true;
-        btnClearImages.disabled = true;
+        updateControls();
         return;
     }
+
     files.forEach(f => {
         const url = URL.createObjectURL(f);
-        imageURLs.push({ url, name: f.name });
-        const t = document.createElement('img');
-        t.src = url;
-        t.title = f.name;
-        thumbs.appendChild(t);
+        addImageEntry({
+            url,
+            name: f.name,
+            objectURL: true
+        });
     });
-    imgsStatus.textContent = `Loaded ${files.length} images.`;
-    btnStart.disabled = false;
-    btnClearImages.disabled = false;
+
+    imgsStatus.textContent = `Loaded ${files.length} image${files.length === 1 ? '' : 's'}. Click a thumbnail or let the model pick at random.`;
+    updateControls();
 };
 
-// clear loaded images button
+btnDefaultImages.onclick = () => {
+    clearImages({ quiet: true });
+
+    for (let i = 1; i <= 10; i++) {
+        const name = `cat${i}.png`;
+        addImageEntry({
+            url: `images/${name}`,
+            name,
+            objectURL: false
+        });
+    }
+
+    imgsStatus.textContent = 'Loaded 10 default cat images. Ask the network to describe them or click a thumbnail.';
+    updateControls();
+};
+
 btnClearImages.onclick = () => {
     clearImages();
     fileInput.value = '';
-    imgsStatus.textContent = 'Removed all images.';
-    btnStart.disabled = true;
-    btnClearImages.disabled = true;
 };
 
-// load default images button
-btnDefaultImages.onclick = () => {
-    clearImages(); // clear anything previously loaded
-
-    // preload 10 default images from /images folder
-    for (let i = 1; i <= 10; i++) {
-        const name = `cat${i}.png`;
-        const url = `images/${name}`;
-        imageURLs.push({ url, name });
-
-        const t = document.createElement('img');
-        t.src = url;
-        t.title = name;
-        thumbs.appendChild(t);
-    }
-
-    imgsStatus.textContent = `Loaded 10 default cat images.`;
-    btnStart.disabled = false;
-    btnClearImages.disabled = false;
+btnLabelRandom.onclick = () => {
+    if (!imageEntries.length) return;
+    const idx = randomIndex();
+    labelImage(idx);
 };
 
-// clear loaded images utility
-function clearImages() {
-    imageURLs.forEach(o => URL.revokeObjectURL(o.url));
-    imageURLs = [];
-    thumbs.innerHTML = '';
-}
+btnLabelAll.onclick = async () => {
+    if (!modelReady || !imageEntries.length || bulkLabeling) return;
+    bulkLabeling = true;
+    updateControls();
 
-// draw rotated image into canvas
-function drawRot(ctx, sourceImageEl, deg) {
-    const sz = 224;
-    ctx.save();
-    ctx.clearRect(0,0,sz,sz);
-    ctx.translate(sz/2, sz/2);
-    ctx.rotate(deg * Math.PI/180);
-    const iw = sourceImageEl.naturalWidth || sourceImageEl.width;
-    const ih = sourceImageEl.naturalHeight || sourceImageEl.height;
-    const minSide = Math.min(iw, ih);
-    const sx = (iw - minSide)/2;
-    const sy = (ih - minSide)/2;
-    ctx.drawImage(sourceImageEl, sx, sy, minSide, minSide, -sz/2, -sz/2, sz, sz);
-    ctx.restore();
-}
-
-function embedFrom(elOrCanvas) {
-    return tf.tidy(() => net.infer(elOrCanvas, true));
-}
-
-// train once on ALL 4 rotations of the image
-async function trainOnceOnImage(sourceEl) {
-    const specs = [
-        {ctx: ctx0,   deg: 0,   label: 'rot_0'},
-        {ctx: ctx90,  deg: 90,  label: 'rot_90'},
-        {ctx: ctx180, deg: 180, label: 'rot_180'},
-        {ctx: ctx270, deg: 270, label: 'rot_270'}
-    ];
-
-    for (const s of specs) {
-        drawRot(s.ctx, sourceEl, s.deg);
-        const act = embedFrom(s.ctx.canvas);
-        knn.addExample(act, s.label);
-        act.dispose();
-        await tf.nextFrame();
+    for (let i = 0; i < imageEntries.length; i++) {
+        await labelImage(i, { force: true });
     }
 
-    // memory cap because KNN keeps growing indefinitely
-    if (MAX_EXAMPLES_PER_CLASS) {
-        const counts = knn.getClassExampleCount();
-        for (const k of Object.keys(counts)) {
-            if (counts[k] > MAX_EXAMPLES_PER_CLASS) {
-                console.warn(`Cap reached for ${k}. Clearing KNN to avoid overgrowth.`);
-                knn.clearAllClasses();
-                break;
-            }
+    bulkLabeling = false;
+    statusEl.textContent = 'Finished labeling every image currently loaded.';
+    updateControls();
+};
+
+function initUI() {
+    setLogEmpty();
+    resetPreview();
+    renderResults();
+    updateControls();
+}
+
+function updateControls() {
+    const hasImages = imageEntries.length > 0;
+    btnClearImages.disabled = !hasImages;
+
+    const allowLabeling = modelReady && hasImages && !labeling && !bulkLabeling;
+    btnLabelRandom.disabled = !allowLabeling;
+    btnLabelAll.disabled = !modelReady || !hasImages || labeling || bulkLabeling;
+}
+
+function disableLabelControls(disabled) {
+    btnLabelRandom.disabled = disabled;
+    btnLabelAll.disabled = disabled;
+}
+
+function addImageEntry(entry) {
+    imageEntries.push(entry);
+    const idx = imageEntries.length - 1;
+
+    const thumb = document.createElement('img');
+    setImageSource(thumb, entry.url);
+    thumb.title = entry.name;
+    thumb.dataset.index = String(idx);
+    thumb.addEventListener('click', () => {
+        labelImage(Number(thumb.dataset.index));
+    });
+
+    entry.thumb = thumb;
+    thumbs.appendChild(thumb);
+}
+
+async function labelImage(index, { force = false } = {}) {
+    if (!modelReady || labeling || (bulkLabeling && !force)) return;
+    const entry = imageEntries[index];
+    if (!entry) return;
+
+    labeling = true;
+    updateControls();
+    highlightThumb(index);
+
+    try {
+        statusEl.textContent = `Loading "${entry.name}" into the network…`;
+        await loadImageInto(img, entry.url);
+        drawToPreview(img);
+        curimgEl.textContent = entry.name || '(blob)';
+
+        statusEl.textContent = 'Generating machine labels…';
+        const results = await classifier.classify(img);
+        renderResults(results);
+        appendLog(entry, results);
+
+        if (results && results[0]) {
+            statusEl.textContent = `Top label for "${entry.name}" -> ${formatResult(results[0])}`;
+        } else {
+            statusEl.textContent = `No confident label for "${entry.name}".`;
         }
+
+        currentIndex = index;
+    } catch (err) {
+        console.error(err);
+        statusEl.textContent = `Failed to label "${entry?.name || 'image'}".`;
+    } finally {
+        labeling = false;
+        updateControls();
     }
 }
 
-// returns: { ok, trueDeg, predDeg, conf }
-async function testOnceOnImage(sourceEl) {
-    const angles = [0,90,180,270];
-    const trueDeg = angles[Math.floor(Math.random()*angles.length)];
-    drawRot(ctxTest, sourceEl, trueDeg);
-    const act = embedFrom(ctest);
-    const res = await knn.predictClass(act, 3);
-    act.dispose();
-    const predDeg = parseInt(res.label.replace('rot_',''), 10);
-    const conf = (res.confidences[res.label] * 100).toFixed(1);
-    return { ok: predDeg === trueDeg, trueDeg, predDeg, conf };
-}
+function renderResults(results = []) {
+    resultsEl.innerHTML = '';
 
-// loop control
-btnStart.onclick = async () => {
-    if (!imageURLs.length) {
-        statusEl.textContent = 'Load images first.';
+    if (!results.length) {
+        const li = document.createElement('li');
+        li.textContent = 'No predictions yet.';
+        resultsEl.appendChild(li);
         return;
     }
 
-    running = true;
-    btnStart.disabled = true;
-    btnStop.disabled = false;
-    statusEl.textContent = 'Loop running. Training then testing on random images.';
-    await runLoop();
-};
-
-btnStop.onclick = () => {
-    running = false;
-    btnStart.disabled = false;
-    btnStop.disabled = true;
-    statusEl.textContent = 'Loop stopped.';
-};
-
-btnResetStats.onclick = () => {
-    stats = { it: 0, ok: 0, bad: 0 };
-    updateStats();
-    predEl.textContent = '—';
-};
-
-btnClearModel.onclick = () => {
-    knn.clearAllClasses();
-    statusEl.textContent = 'Cleared KNN examples.';
-};
-
-// main loop
-async function runLoop() {
-    while (running) {
-        const pick = imageURLs[Math.floor(Math.random() * imageURLs.length)];
-        await loadImageInto(img, pick.url);
-        curimgEl.textContent = pick.name || '(blob)';
-        await trainOnceOnImage(img);
-        const out = await testOnceOnImage(img);
-        stats.it += 1;
-        if (out.ok) stats.ok += 1; else stats.bad += 1;
-        updateStats(out);
-        const ms = Math.max(0, Number(delayInput.value) || 0);
-        if (ms) await sleep(ms);
-        await tf.nextFrame();
-    }
+    const sliced = results.slice(0, MAX_RESULTS);
+    sliced.forEach(res => {
+        const li = document.createElement('li');
+        li.textContent = formatResult(res);
+        resultsEl.appendChild(li);
+    });
 }
 
-function updateStats(last = null) {
-    itEl.textContent = String(stats.it);
-    okEl.textContent = String(stats.ok);
-    badEl.textContent = String(stats.bad);
-    const acc = stats.it ? (100 * stats.ok / stats.it) : 0;
-    accEl.textContent = `${acc.toFixed(2)}%`;
-    if (last) {
-        predEl.textContent = `pred ${last.predDeg}° (true ${last.trueDeg}°) - ${last.ok ? '✅ correct' : '❌ wrong'} - conf ${last.conf}%`;
+function appendLog(entry, results = []) {
+    if (!results.length) return;
+
+    if (logEl.firstElementChild && logEl.firstElementChild.classList.contains('log-empty')) {
+        logEl.innerHTML = '';
     }
+
+    const li = document.createElement('li');
+    const title = document.createElement('div');
+    title.className = 'log-title';
+    title.textContent = entry.name || '(blob)';
+    li.appendChild(title);
+
+    const primary = document.createElement('div');
+    primary.textContent = `top: ${formatResult(results[0])}`;
+    li.appendChild(primary);
+
+    const alt = results.slice(1, 3);
+    if (alt.length) {
+        const altLine = document.createElement('div');
+        altLine.textContent = `alt: ${alt.map(formatResult).join(', ')}`;
+        li.appendChild(altLine);
+    }
+
+    logEl.prepend(li);
 }
 
-// utilities
-function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+function clearImages(options = {}) {
+    const { quiet = false } = options;
+
+    imageEntries.forEach(entry => {
+        if (entry.objectURL) {
+            URL.revokeObjectURL(entry.url);
+        }
+    });
+    imageEntries = [];
+    thumbs.innerHTML = '';
+    currentIndex = -1;
+
+    resetPreview();
+    renderResults();
+    setLogEmpty();
+    curimgEl.textContent = 'N/A';
+
+    if (!quiet) {
+        imgsStatus.textContent = 'Removed all images.';
+    }
+
+    updateControls();
+}
+
+function setLogEmpty(message = 'No pseudo-labels yet. Ask the model to describe an image.') {
+    logEl.innerHTML = '';
+    const li = document.createElement('li');
+    li.className = 'log-empty';
+    li.textContent = message;
+    logEl.appendChild(li);
+}
+
+function highlightThumb(index) {
+    imageEntries.forEach((entry, idx) => {
+        if (!entry.thumb) return;
+        entry.thumb.classList.toggle('active', idx === index);
+    });
+}
+
+function resetPreview() {
+    previewCtx.save();
+    previewCtx.clearRect(0, 0, preview.width, preview.height);
+    previewCtx.fillStyle = '#0b0d1c';
+    previewCtx.fillRect(0, 0, preview.width, preview.height);
+    previewCtx.restore();
+}
+
+function drawToPreview(source) {
+    const w = preview.width;
+    const h = preview.height;
+
+    previewCtx.save();
+    previewCtx.clearRect(0, 0, w, h);
+    previewCtx.fillStyle = '#0b0d1c';
+    previewCtx.fillRect(0, 0, w, h);
+
+    const iw = source.naturalWidth || source.width;
+    const ih = source.naturalHeight || source.height;
+    const scale = Math.min(w / iw, h / ih);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    const dx = (w - dw) / 2;
+    const dy = (h - dh) / 2;
+
+    previewCtx.drawImage(source, 0, 0, iw, ih, dx, dy, dw, dh);
+    previewCtx.restore();
+}
+
 function loadImageInto(el, url) {
     return new Promise((resolve, reject) => {
         el.onload = () => resolve();
         el.onerror = err => reject(err);
-        el.src = url;
+        setImageSource(el, url);
     });
+}
+
+function formatResult(res) {
+    const conf = (res.confidence * 100).toFixed(1);
+    return `${res.label} (${conf}%)`;
+}
+
+function randomIndex() {
+    return Math.floor(Math.random() * imageEntries.length);
+}
+
+async function prepareTensorflowBackend() {
+    const tf = window.tf;
+    if (!tf || typeof tf.ready !== 'function') return;
+
+    try {
+        const shouldUseCPU = typeof window.location !== 'undefined'
+            && window.location.protocol === 'file:'
+            && typeof tf.setBackend === 'function'
+            && tf.getBackend?.() !== 'cpu';
+
+        if (shouldUseCPU) {
+            await tf.setBackend('cpu');
+        }
+
+        await tf.ready();
+    } catch (err) {
+        console.warn('TensorFlow.js backend setup issue:', err);
+    }
+}
+
+function setImageSource(el, url) {
+    if (shouldUseCors(url)) {
+        el.crossOrigin = 'anonymous';
+    } else {
+        el.removeAttribute('crossorigin');
+    }
+    el.src = url;
+}
+
+function shouldUseCors(url) {
+    if (typeof window === 'undefined') return false;
+    const protocol = window.location?.protocol;
+    if (!protocol || protocol === 'file:') return false;
+    if (url.startsWith('data:') || url.startsWith('blob:')) return false;
+    return true;
 }
