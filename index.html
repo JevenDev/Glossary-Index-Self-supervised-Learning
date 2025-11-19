@@ -1,24 +1,32 @@
 <!doctype html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8" />
-    <title>Self-Supervised Pseudo-Labeling</title>
+    <title>Self-Supervised Learning: Contrastive Learning</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.7.4/dist/tf.min.js"></script>
-    <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
     <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
     <script src="script.js" defer></script>
 </head>
+
 <body>
     <div class="heading">
-        <h1>Self-Supervised Learning - Machine-Generated Labels</h1>
+        <h1>Self-Supervised Learning - Contrastive Learning</h1>
         <p>
-            Instead of a person providing labels, we rely on a pre-trained MobileNet to describe each image on its own.
-            The network has learned rich features elsewhere, so here it bootstraps <b>pseudo-labels</b> for any photo you feed it.
-            Try your own images or grab the defaults, then ask the model to assign its top categories.
+            <b>Self-Supervised Learning</b> allows machines to learn from data without human labels. The system creates
+            its own "pretext tasks" to understand the world.
+            In this demo, we visualize <b>SimCLR</b> (Chen et al., 2020), a contrastive learning framework. The network
+            learns by <b>maximizing agreement</b> between different views of the same image (Positive Pairs) and
+            <b>minimizing agreement</b> between different images (Negative Pairs). By solving this task, it learns
+            robust visual features, understanding that a "dog" is still a "dog" whether it's black and white, cropped,
+            or
+            blurry.
         </p>
         <br>
-        <h2 class="flash-warning"><i>No human annotations required | watch the machine narrate the data.</i></h2>
+        <h2 class="flash-warning"><i>Maximize agreement between augmentations | Minimize agreement between distinct
+                images.</i></h2>
     </div>
     <br>
     <section class="card">
@@ -34,34 +42,53 @@
     </section>
 
     <section class="card">
-        <h2>2) Let the Network Describe Them</h2>
+        <h2>2) The Pretext Task: Contrastive Embedding</h2>
         <div class="controls">
-            <button id="btn-label-random" disabled>Label Random Image</button>
-            <button id="btn-label-all" disabled>Label All Images</button>
+            <button id="btn-pos-pair" disabled>Compare Positive Pair (Same Object)</button>
+            <button id="btn-neg-pair" disabled>Compare Negative Pair (Different Object)</button>
         </div>
 
-        <p id="status">Loading ml5 and MobileNet</p>
+        <p id="status">Select an image to start.</p>
 
-        <div class="preview-row">
-            <div class="preview-box">
-                <h3>Current Image</h3>
-                <canvas id="preview" width="224" height="224"></canvas>
-                <p id="curimg">N/A</p>
+        <div class="contrastive-arena">
+            <!-- Anchor Slot -->
+            <div class="slot-container">
+                <h3>Anchor Image</h3>
+                <div id="slot-anchor" class="image-slot">
+                    <div class="placeholder-text">Select Image</div>
+                </div>
             </div>
-            <div class="results-box">
-                <h3>Top Machine Labels</h3>
-                <ul id="results"></ul>
+
+            <!-- Embedding Space Visualization -->
+            <div class="embedding-space">
+                <h3>Embedding Space</h3>
+                <div id="embedding-viz" class="embedding-viz">
+                    <div id="orb-anchor" class="orb"></div>
+                    <div id="orb-compare" class="orb"></div>
+                    <div class="force-line"></div>
+                </div>
+                <p id="embedding-status">Waiting...</p>
+            </div>
+
+            <!-- Comparison Slot -->
+            <div class="slot-container">
+                <h3>Comparison Image</h3>
+                <div id="slot-compare" class="image-slot">
+                    <div class="placeholder-text">?</div>
+                </div>
+                <div id="aug-badge" class="aug-badge hidden">Augmentation: Crop + Blur</div>
             </div>
         </div>
     </section>
 
     <section class="card">
-        <h2>Pseudo-Label Log</h2>
-        <p>Each request records the model's best guess so you can export machine-generated annotations later on.</p>
+        <h2>Training Log</h2>
+        <p>History of contrastive steps.</p>
         <ul id="log" class="log"></ul>
     </section>
 
-    <!-- hidden source image element (needed for drawing but not shown) -->
+    <!-- hidden source image element -->
     <img id="img" alt="hidden source" style="display:none" />
 </body>
+
 </html>
