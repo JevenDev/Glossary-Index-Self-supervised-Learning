@@ -1,19 +1,30 @@
-# Self-Supervised Pseudo-Labeling Playground
+# Self-Supervised Learning: Contrastive Learning Demo
 
 [See it in action](https://jevendev.github.io/Glossary-Index-Self-supervised-Learning/)
 
-This demo shows how you can skip human annotations and still gather useful labels. We rely on
-ml5.js' MobileNet feature extractor — a network that has already taught itself rich visual
-representations. When you drop images into the page, the model generates its own pseudo-labels
-(top ImageNet categories plus confidences) so you can inspect or export machine-generated tags.
+This interactive demo visualizes **Contrastive Learning**, a core concept in Self-Supervised Learning (SSL). It demonstrates how machines can learn robust visual features from data without human labels by solving "pretext tasks" like the one proposed in the **SimCLR** framework (Chen et al., 2020).
+
+## How It Works
+
+The network learns by comparing images:
+*   **Maximize Agreement (Positive Pairs)**: The model pulls together embeddings of the same image, even if it is augmented (e.g., cropped, blurry, or discolored). It learns that these are the "same" object.
+*   **Minimize Agreement (Negative Pairs)**: The model pushes apart embeddings of completely different images (e.g., a dog vs. a car). It learns that these are distinct objects.
+
+## Features
+
+*   **Real-Time Embeddings**: Uses **TensorFlow.js** and **MobileNet** to extract 1024-dimensional feature vectors from images right in your browser.
+*   **Cosine Similarity**: Calculates the actual mathematical similarity between image embeddings to drive the visualization.
+*   **Interactive Visualization**: Watch the "embedding orbs" attract or repel based on the model's understanding of the images.
+*   **Augmentation Simulation**: Visualizes how the model sees different versions of the same image.
 
 ## Quickstart
 
-1. Open the page and wait for the "Model ready" status.
-2. Drag in your own images or click "Use Default Images" to load the bundled cat photos.
-3. Press **Label Random Image** or click any thumbnail to see the machine's top predictions.
-4. Use **Label All Images** to generate a full pseudo-label log that can seed downstream datasets.
+1.  **Load Images**: Click "Use Default Images" to load a diverse set (Cat, Dog, Car, Bird, Flower) or upload your own.
+2.  **Set Anchor**: Click any thumbnail to set it as the "Anchor Image".
+3.  **Compare**:
+    *   **Positive Pair**: Compares the anchor to an augmented version of itself. Watch the high similarity score pull them together.
+    *   **Negative Pair**: Compares the anchor to a different object. Watch the low similarity score push them apart.
 
-No training loop is run locally; instead we demonstrate how a pre-trained network can bootstrap
-labels that would otherwise require human effort. Adjust the UI or plug in a different ml5 model
-to explore other self-supervised labeling strategies.
+## Note on Local Usage
+
+If you run this locally by opening `index.html` directly, browser security (CORS) may block the model from reading image pixels. The app includes a fallback mode that simulates the scores so you can still see how the concept works. To see the *real* model inference, run a local web server (e.g., `python3 -m http.server`).
