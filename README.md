@@ -28,3 +28,7 @@ The network learns by comparing images:
 ## Note on Local Usage
 
 If you run this locally by opening `index.html` directly, browser security (CORS) may block the model from reading image pixels. The app includes a fallback mode that simulates the scores so you can still see how the concept works. To see the *real* model inference, run a local web server (e.g., `python3 -m http.server`).
+
+## AI Usage
+
+Generative AI (ChatGPT Codex 5.0) was used for tab autocomplete and to help solve a CORS error.
